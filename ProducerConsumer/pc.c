@@ -1,6 +1,5 @@
 //Created by Michael Rogers
-/*My solution uses pthread_mutex to lock the consumer
-and producer threads so they do not run concurrently.
+/*My solution uses pthreads to signal between the Consumer and Producer informing each thread when to run.
 theBuffer variable is used to determine whether Producer
 or Consumer should execute their logic.
 */
@@ -11,32 +10,40 @@ or Consumer should execute their logic.
 
 int theProduct;
 char theBuffer = 'E';
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutex;
+pthread_cond_t consumerT;
+pthread_cond_t producerT;
 
 void *Producer() {
 	int i;
 	while(1) {
-		pthread_mutex_lock(&mutex);
-		//If buffer is Empty, get new theProduct and print current 				value.
-		if(theBuffer == 'E') {
-			i = produce();
-			put(i);
-			printf("Producing: %i\n", i);
+		//If buffer is full, signal that thread is waiting on a new condition before moving on.
+		if(theBuffer == 'F') {
+			pthread_cond_wait(&consumerT, &mutex);
 		}
-		pthread_mutex_unlock(&mutex);
+		//If buffer is Empty, get new theProduct and print current 				value.
+		else if(theBuffer == 'E') {
+			i = produce();
+			printf("Producing: %i\n", i);
+			put(i);
+			pthread_cond_signal(&producerT);
+		};
 	}
 }
 
 void *Consumer() {
 	int i;
 	while(1) {
-		pthread_mutex_lock(&mutex);
-		//If buffer is Full, get current value of theProduct and 				print
-		if(theBuffer == 'F') {
+		//If buffer is empty, signal that thread is waiting on a new condition before moving on.
+		if(theBuffer == 'E') {
+			pthread_cond_wait(&producerT, &mutex);
+		}
+		//If buffer is Full, get current value of theProduct and 				print.
+		else if(theBuffer == 'F') {
 			i = get();
 			consume(i);
+			pthread_cond_signal(&consumerT);
 		}
-		pthread_mutex_unlock(&mutex);
 	}
 }
 
@@ -60,7 +67,6 @@ void put(int i) {
 //Set buffer to Empty (E) and return current value of theProduct
 int get() {
 	theBuffer = 'E';
-	sleep(2);
 	return theProduct;
 }
 
